@@ -65,7 +65,6 @@ playwright install chromium
 |---------|--------|
 | CHECK_DAYS | 7 |
 | DRIVE_FOLDER_ID | （Google DriveのフォルダIDを入力） |
-| LABEL_PROCESSED | 処理済み |
 | NOTIFY_EMAIL | （所長のメールアドレス） |
 
 #### フォルダIDの取得方法
@@ -318,9 +317,9 @@ python tests/test_mynumber_guard.py
 ### 9.3 Gmail 読み取り専用原則
 
 - ✅ メールの読み取り：許可
-- ✅ ラベルの追加：許可
+- ⚠️ ラベルの作成・付与・変更：所長に明示的な許可を得てから（現行実装はラベルを使わない）
 - ❌ メールの削除：禁止
-- ❌ メールの送信・転送：禁止
+- ✅ メール送信：nextaxion.jp ドメイン宛てのみ許可（エラー通知用）。転送は禁止
 
 ---
 

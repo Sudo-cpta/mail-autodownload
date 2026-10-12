@@ -76,7 +76,7 @@ def contains_mynumber_pattern1(text: str) -> bool:
         digits = re.sub(r'[-\s]', '', match)
 
         if len(digits) == 12 and is_valid_mynumber_checkdigit(digits):
-            logger.warning(f"マイナンバー検出（パターン1）: {match[:4]}****{match[-4:]}")
+            logger.warning("マイナンバー検出（パターン1）: 12桁数字（番号はログに出力しない）")
             return True
 
     return False

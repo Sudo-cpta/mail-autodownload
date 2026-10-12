@@ -20,7 +20,7 @@
 > 
 > ## 実装済みコンポーネント
 > 
-> - ✅ **mynumber_guard.py**：マイナンバー検査モジュール（3パターン検出）
+> - ✅ **mynumber_guard.py**：マイナンバー検査モジュール（3パターン検出）。※証憑運用パイプライン側に既存の同名モジュールがあるため、統合時は既存版を優先し、本版は参考とする
 > - ✅ **gmail_invoice_saver.gs**：GAS スクリプト（メール→Google Drive保存）
 > - ✅ **test_mynumber_guard.py**：テストスクリプト（ダミーデータ）
 > - 📄 **IMPLEMENTATION_SPEC.md**：実装仕様書

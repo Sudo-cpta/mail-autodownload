@@ -49,7 +49,6 @@ function main() {
     const config = loadConfig();
     const checkDays = config['CHECK_DAYS'] || 7;
     const driveFolderId = config['DRIVE_FOLDER_ID'];
-    const labelProcessed = config['LABEL_PROCESSED'] || '処理済み';
     const notifyEmail = config['NOTIFY_EMAIL'];
 
     // 設定チェック
@@ -59,11 +58,11 @@ function main() {
 
     Logger.log(`設定: CHECK_DAYS=${checkDays}, DRIVE_FOLDER_ID=${driveFolderId}`);
 
-    // 処理済みラベルを取得または作成
-    const processedLabel = getOrCreateLabel(labelProcessed);
+    // 処理済みメッセージIDを読み込む（Gmailのラベルは変更しない）
+    const processedIds = loadProcessedIds();
 
     // メールを検索
-    const threads = searchInvoiceEmails(checkDays, processedLabel);
+    const threads = searchInvoiceEmails(checkDays);
     Logger.log(`検索結果: ${threads.length} 件のスレッド`);
 
     let totalSaved = 0;
@@ -74,11 +73,8 @@ function main() {
       const thread = threads[i];
 
       try {
-        const savedCount = processThread(thread, driveFolderId);
+        const savedCount = processThread(thread, driveFolderId, processedIds);
         totalSaved += savedCount;
-
-        // 処理済みラベルを付与
-        thread.addLabel(processedLabel);
 
         Logger.log(`スレッド ${i + 1}/${threads.length}: ${savedCount} 件保存`);
 
@@ -109,10 +105,9 @@ function main() {
  * 請求書メールを検索
  *
  * @param {number} days - 検索対象日数
- * @param {GmailLabel} processedLabel - 処理済みラベル
  * @return {GmailThread[]} - スレッドの配列
  */
-function searchInvoiceEmails(days, processedLabel) {
+function searchInvoiceEmails(days) {
   const sinceDate = new Date();
   sinceDate.setDate(sinceDate.getDate() - days);
   const sinceDateStr = Utilities.formatDate(sinceDate, 'JST', 'yyyy/MM/dd');
@@ -120,8 +115,7 @@ function searchInvoiceEmails(days, processedLabel) {
   // 検索クエリ
   // - 添付ファイルあり
   // - 指定日以降
-  // - 処理済みラベルなし
-  const query = `has:attachment after:${sinceDateStr} -label:${processedLabel.getName()}`;
+  const query = `has:attachment after:${sinceDateStr}`;
 
   Logger.log(`検索クエリ: ${query}`);
 
@@ -137,14 +131,20 @@ function searchInvoiceEmails(days, processedLabel) {
  *
  * @param {GmailThread} thread - スレッド
  * @param {string} driveFolderId - 保存先フォルダID
+ * @param {Set<string>} processedIds - 処理済みメッセージID
  * @return {number} - 保存したファイル数
  */
-function processThread(thread, driveFolderId) {
+function processThread(thread, driveFolderId, processedIds) {
   const messages = thread.getMessages();
   let savedCount = 0;
 
   for (const message of messages) {
-    savedCount += processMessage(message, driveFolderId);
+    const id = message.getId();
+    if (processedIds.has(id)) continue;
+    const n = processMessage(message, driveFolderId);
+    recordProcessedId(id);
+    processedIds.add(id);
+    savedCount += n;
   }
 
   return savedCount;
@@ -207,20 +207,34 @@ function processMessage(message, driveFolderId) {
 // ==========================================
 
 /**
- * ラベルを取得または作成
+ * 処理済みメッセージIDを「処理済み」シートから読み込む
  *
- * @param {string} labelName - ラベル名
- * @return {GmailLabel} - ラベル
+ * @return {Set<string>}
  */
-function getOrCreateLabel(labelName) {
-  let label = GmailApp.getUserLabelByName(labelName);
+function loadProcessedIds() {
+  const sheet = getProcessedSheet();
+  const last = sheet.getLastRow();
+  const ids = last >= 2 ? sheet.getRange(2, 1, last - 1, 1).getValues().flat() : [];
+  return new Set(ids.map(String));
+}
 
-  if (!label) {
-    label = GmailApp.createLabel(labelName);
-    Logger.log(`ラベル作成: ${labelName}`);
+/**
+ * 処理済みメッセージIDを記録
+ *
+ * @param {string} id - GmailメッセージID
+ */
+function recordProcessedId(id) {
+  getProcessedSheet().appendRow([id, new Date()]);
+}
+
+function getProcessedSheet() {
+  const ss = SpreadsheetApp.openById(CONFIG_SHEET_ID);
+  let sheet = ss.getSheetByName('処理済み');
+  if (!sheet) {
+    sheet = ss.insertSheet('処理済み');
+    sheet.appendRow(['messageId', '処理日時']);
   }
-
-  return label;
+  return sheet;
 }
 
 /**
@@ -289,6 +303,11 @@ function extractName(from) {
  * @param {Error} error - エラー
  */
 function sendErrorNotification(email, thread, error) {
+  // 送信は nextaxion.jp ドメイン宛てに限定（所長方針 2026-10-12）
+  if (!/@nextaxion\.jp$/i.test(String(email).trim())) {
+    Logger.log(`通知先が許可ドメイン外のため送信しません: ${email}`);
+    return;
+  }
   const subject = '【エラー通知】Gmail請求書自動保存';
   const body = `
 Gmail請求書自動保存でエラーが発生しました。
@@ -329,8 +348,7 @@ function test() {
   Logger.log(config);
 
   // メールを検索（直近1日間）
-  const labelProcessed = getOrCreateLabel(config['LABEL_PROCESSED'] || '処理済み');
-  const threads = searchInvoiceEmails(1, labelProcessed);
+  const threads = searchInvoiceEmails(1);
 
   Logger.log(`検索結果: ${threads.length} 件`);
 
