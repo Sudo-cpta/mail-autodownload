@@ -13,3 +13,9 @@ openpyxl==3.1.2
 python-dotenv==1.0.1
 beautifulsoup4==4.12.3
 lxml==5.1.0
+
+# マイナンバー検査（PDF・画像OCR）
+PyPDF2==3.0.1
+pytesseract==0.3.10
+Pillow==10.2.0
+pdf2image==1.17.0
